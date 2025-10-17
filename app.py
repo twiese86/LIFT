@@ -15,7 +15,7 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 
 # ⚠️ EDIT ME: HARD-CODED GEMINI API KEY
 # Replace ONLY the string value below with your real key.
-genai.configure(api_key=GEMINI_API_KEY)
+genai.configure(api_key=AIzaSyBj0Tj-UFXWW33BcGx47mXsFvK4dH3pj8Q)
 
 # Model choice: fast + inexpensive. Change if you need higher quality.
 MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
