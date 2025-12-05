@@ -125,7 +125,7 @@ def ui():
         .chat-window {{
           border-radius: 12px;
           border: 1px solid #e5e7eb;
-          background: #f9fafb;
+          background: #f3f4f6;   /* slightly darker so bubbles pop */
           padding: 0.75rem;
           overflow-y: auto;
           flex: 1;
@@ -181,7 +181,7 @@ def ui():
         }}
 
         .bubble {{
-          max-width: 75%;
+          max-width: 60%;          /* narrower bubbles */
           display: inline-block;
           margin: 0 6px;
           padding: 0.75rem 1rem;
@@ -211,6 +211,7 @@ def ui():
 
         .bubble-body {{
           font-size: 0.9rem;
+          text-align: left;       /* ensure text is left-aligned */
         }}
 
         .typing-dots {{
@@ -672,7 +673,7 @@ New Content (for this turn):
 
 Respond with clear, faculty-facing teaching materials. If the user asks meta-questions about LIFT itself,
 answer those directly and clearly.
-"""  # noqa: E501
+"""
 
     try:
         resp = model.generate_content(prompt)
