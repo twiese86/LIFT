@@ -125,7 +125,7 @@ def ui():
         .chat-window {{
           border-radius: 12px;
           border: 1px solid #e5e7eb;
-          background: #f3f4f6;   /* slightly darker so bubbles pop */
+          background: #f3f4f6;
           padding: 0.75rem;
           overflow-y: auto;
           flex: 1;
@@ -181,15 +181,15 @@ def ui():
         }}
 
         .bubble {{
-          max-width: 60%;          /* narrower bubbles */
+          max-width: 60%;
           display: inline-block;
           margin: 0 6px;
           padding: 0.75rem 1rem;
           border-radius: 14px;
           font-size: 0.9rem;
           line-height: 1.45;
-          white-space: pre-wrap;
-          word-wrap: break-word;
+          white-space: normal;      /* don't preserve indentation whitespace */
+          word-break: break-word;
         }}
 
         .assistant .bubble {{
@@ -211,7 +211,7 @@ def ui():
 
         .bubble-body {{
           font-size: 0.9rem;
-          text-align: left;       /* ensure text is left-aligned */
+          text-align: left;
         }}
 
         .typing-dots {{
@@ -386,10 +386,7 @@ def ui():
                 <div class="avatar">L</div>
                 <div class="bubble">
                   <div class="name">LIFT</div>
-                  <div class="bubble-body">
-                    Hi! Paste course content or upload a .txt file, add your Custom Instructions
-                    (tone, Bloom’s level, outcomes, etc.), and I’ll generate teaching materials here in the chat.
-                  </div>
+                  <div class="bubble-body">Hi! Paste course content or upload a .txt file, add your Custom Instructions (tone, Bloom’s level, outcomes, etc.), and I’ll generate teaching materials here in the chat.</div>
                 </div>
               </div>
             </div>
