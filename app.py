@@ -4,14 +4,14 @@ from flask_cors import CORS
 import google.generativeai as genai
 
 # -----------------------------
-# LIFT: Single-container Web App with Chat UI + Conversational Memory
+# LIFT: Web App with Chat UI + Conversational Memory
 # -----------------------------
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Secret key for Flask sessions (used for conversational memory)
-# In Koyeb, set FLASK_SECRET_KEY as an environment variable (recommended).
+# In Koyeb, set FLASK_SECRET_KEY as an environment variable.
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "change-me-in-production")
 
 # Gemini API key via environment variable (Koyeb: set GEMINI_API_KEY)
@@ -28,9 +28,9 @@ model = genai.GenerativeModel(MODEL_NAME)
 app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024  # 10 MB uploads
 
 # Conversational memory settings
-MAX_HISTORY_TURNS = 6        # how many (user, assistant) pairs to keep
-USER_SNIPPET_CHARS = 600     # how many chars of user content to store in memory
-ASSISTANT_SNIPPET_CHARS = 2000  # how many chars of assistant output to store
+MAX_HISTORY_TURNS = 6            # how many (user, assistant) pairs to keep
+USER_SNIPPET_CHARS = 600         # chars of user content to store
+ASSISTANT_SNIPPET_CHARS = 2000   # chars of assistant output to store
 
 
 @app.route("/", methods=["GET"])
@@ -44,14 +44,22 @@ def ui():
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>LIFT Tool</title>
       <style>
-        * {{ box-sizing: border-box; }}
-        body {{
+        * {{
+          box-sizing: border-box;
+        }}
+
+        /* Reset some default margins that can break layout */
+        body, p, div, h1, h2, h3, h4, h5, h6 {{
           margin: 0;
           padding: 0;
+        }}
+
+        body {{
           font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
           background: #f3f4f6;
           color: #111827;
         }}
+
         .app {{
           min-height: 100vh;
           display: flex;
@@ -59,6 +67,7 @@ def ui():
           justify-content: center;
           padding: 1.5rem;
         }}
+
         .card {{
           background: #ffffff;
           width: 100%;
@@ -69,15 +78,18 @@ def ui():
           flex-direction: column;
           overflow: hidden;
         }}
+
         .header {{
           padding: 1.25rem 1.5rem 0.75rem;
           border-bottom: 1px solid #e5e7eb;
         }}
+
         .title-row {{
           display: flex;
           align-items: center;
           gap: 0.75rem;
         }}
+
         .pill {{
           width: 32px;
           height: 32px;
@@ -90,15 +102,17 @@ def ui():
           font-weight: 700;
           font-size: 0.9rem;
         }}
+
         h1 {{
-          margin: 0;
           font-size: 1.1rem;
         }}
+
         .subtitle {{
-          margin: 0.4rem 0 0;
+          margin-top: 0.4rem;
           font-size: 0.9rem;
           color: #6b7280;
         }}
+
         .body {{
           display: flex;
           flex-direction: column;
@@ -107,6 +121,7 @@ def ui():
           min-height: 0;
           flex: 1;
         }}
+
         .chat-window {{
           border-radius: 12px;
           border: 1px solid #e5e7eb;
@@ -116,6 +131,7 @@ def ui():
           flex: 1;
           max-height: 60vh;
         }}
+
         .chat-window::-webkit-scrollbar {{
           width: 6px;
         }}
@@ -123,66 +139,86 @@ def ui():
           background: #d1d5db;
           border-radius: 999px;
         }}
+
+        /* Chat messages */
+
         .message {{
+          width: 100%;
           display: flex;
+          align-items: flex-start;
           margin-bottom: 0.75rem;
           gap: 0.5rem;
         }}
+
         .message.assistant {{
           flex-direction: row;
         }}
+
         .message.user {{
           flex-direction: row-reverse;
         }}
+
         .avatar {{
-          flex: 0 0 28px;
-          height: 28px;
+          width: 32px;
+          height: 32px;
           border-radius: 999px;
+          flex-shrink: 0;
           display: flex;
           align-items: center;
           justify-content: center;
           font-size: 0.75rem;
           font-weight: 600;
         }}
+
         .assistant .avatar {{
           background: #eef2ff;
           color: #3730a3;
         }}
+
         .user .avatar {{
           background: #ecfeff;
           color: #0f766e;
         }}
+
         .bubble {{
           max-width: 75%;
-          padding: 0.6rem 0.8rem;
+          display: inline-block;
+          margin: 0 6px;
+          padding: 0.75rem 1rem;
           border-radius: 14px;
           font-size: 0.9rem;
-          line-height: 1.4;
+          line-height: 1.45;
           white-space: pre-wrap;
           word-wrap: break-word;
         }}
+
         .assistant .bubble {{
           background: #ffffff;
           border: 1px solid #e5e7eb;
         }}
+
         .user .bubble {{
           background: #111827;
           color: #f9fafb;
         }}
+
         .name {{
           font-size: 0.75rem;
           font-weight: 600;
           margin-bottom: 0.15rem;
           opacity: 0.8;
         }}
+
         .bubble-body {{
           font-size: 0.9rem;
         }}
+
         .typing-dots {{
           display: inline-flex;
           gap: 3px;
           align-items: center;
         }}
+
         .dot {{
           width: 4px;
           height: 4px;
@@ -190,12 +226,22 @@ def ui():
           background: #9ca3af;
           animation: blink 1.4s infinite both;
         }}
-        .dot:nth-child(2) {{ animation-delay: 0.2s; }}
-        .dot:nth-child(3) {{ animation-delay: 0.4s; }}
+
+        .dot:nth-child(2) {{
+          animation-delay: 0.2s;
+        }}
+
+        .dot:nth-child(3) {{
+          animation-delay: 0.4s;
+        }}
+
         @keyframes blink {{
           0%, 80%, 100% {{ opacity: 0.3; }}
           40% {{ opacity: 1; }}
         }}
+
+        /* Form */
+
         .form-wrapper {{
           border-radius: 12px;
           border: 1px solid #e5e7eb;
@@ -205,22 +251,26 @@ def ui():
           flex-direction: column;
           gap: 0.5rem;
         }}
+
         .form-row {{
           display: flex;
           gap: 0.75rem;
           flex-wrap: wrap;
         }}
+
         .field {{
           flex: 1 1 200px;
           display: flex;
           flex-direction: column;
           gap: 0.2rem;
         }}
+
         label {{
           font-size: 0.8rem;
           font-weight: 600;
           color: #4b5563;
         }}
+
         textarea {{
           width: 100%;
           resize: vertical;
@@ -231,18 +281,22 @@ def ui():
           font-size: 0.9rem;
           font-family: inherit;
         }}
+
         textarea:focus {{
           outline: none;
           border-color: #6366f1;
           box-shadow: 0 0 0 1px #6366f1;
         }}
+
         input[type="file"] {{
           font-size: 0.8rem;
         }}
+
         .hint {{
           font-size: 0.75rem;
           color: #9ca3af;
         }}
+
         .actions {{
           display: flex;
           align-items: center;
@@ -250,6 +304,7 @@ def ui():
           gap: 0.75rem;
           margin-top: 0.25rem;
         }}
+
         button[type="submit"] {{
           padding: 0.6rem 1.2rem;
           border-radius: 999px;
@@ -263,19 +318,23 @@ def ui():
           align-items: center;
           gap: 0.4rem;
         }}
+
         button[type="submit"]:disabled {{
           opacity: 0.6;
           cursor: default;
         }}
+
         .muted {{
           color: #6b7280;
           font-size: 0.75rem;
         }}
+
         .error-text {{
           color: #b91c1c;
           font-size: 0.8rem;
           margin-top: 0.25rem;
         }}
+
         .footer {{
           border-top: 1px solid #e5e7eb;
           padding: 0.5rem 1.5rem 0.65rem;
@@ -285,15 +344,22 @@ def ui():
           font-size: 0.75rem;
           color: #9ca3af;
         }}
+
         .mono {{
           font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
         }}
+
         @media (max-width: 640px) {{
           .app {{
             padding: 0.75rem;
           }}
+
           .chat-window {{
             max-height: 55vh;
+          }}
+
+          .bubble {{
+            max-width: 90%;
           }}
         }}
       </style>
@@ -327,7 +393,8 @@ def ui():
               </div>
             </div>
 
-            <form id="lift-form" action="/generate-content" method="POST" enctype="multipart/form-data" class="form-wrapper">
+            <form id="lift-form" action="/generate-content" method="POST"
+                  enctype="multipart/form-data" class="form-wrapper">
               <div class="form-row">
                 <div class="field">
                   <label for="file">Upload file (.txt)</label>
@@ -336,15 +403,19 @@ def ui():
                 </div>
                 <div class="field">
                   <label for="instructions">Custom Instructions</label>
-                  <textarea id="instructions" name="instructions" placeholder="e.g., Write 5 quiz questions at Bloom’s apply/analyze; academic tone; include brief feedback."></textarea>
+                  <textarea id="instructions" name="instructions"
+                    placeholder="e.g., Write 5 quiz questions at Bloom’s apply/analyze; academic tone; include brief feedback."></textarea>
                 </div>
               </div>
               <div class="field">
                 <label for="text_input">Paste content</label>
-                <textarea id="text_input" name="text_input" placeholder="Paste course content, lecture notes, or article text here."></textarea>
+                <textarea id="text_input" name="text_input"
+                  placeholder="Paste course content, lecture notes, or article text here."></textarea>
               </div>
               <div class="actions">
-                <div class="muted">LIFT will respond in this chat window. Conversation memory is enabled per browser.</div>
+                <div class="muted">
+                  LIFT will respond in this chat window. Conversation memory is enabled per browser.
+                </div>
                 <button type="submit">
                   <span>Generate with LIFT</span>
                 </button>
@@ -515,7 +586,6 @@ def _get_history():
 
 def _save_history(history):
     """Save truncated conversation history back to the session cookie."""
-    # Keep only the last N turns
     history = history[-MAX_HISTORY_TURNS:]
     session["lift_history"] = history
 
@@ -543,7 +613,7 @@ def generate_content():
     if uploaded_file and uploaded_file.filename:
         try:
             file_text = uploaded_file.read().decode("utf-8", errors="ignore")
-            combined_text += file_text + "\n"
+            combined_text += file_text + "\\n"
         except Exception as e:
             return jsonify({"error": f"Failed to read file: {e}"}), 400
 
@@ -560,15 +630,15 @@ def generate_content():
     # Build a user message summary to store in memory (smaller than full content)
     user_summary_parts = []
     if instructions.strip():
-        user_summary_parts.append("Instructions:\n" + instructions.strip())
+        user_summary_parts.append("Instructions:\\n" + instructions.strip())
     if combined_text.strip():
         snippet = combined_text.strip()[:USER_SNIPPET_CHARS]
-        user_summary_parts.append("Content snippet:\n" + snippet)
+        user_summary_parts.append("Content snippet:\\n" + snippet)
 
-    user_summary = "\n\n".join(user_summary_parts) if user_summary_parts else "(no explicit content, meta question)"
+    user_summary = "\\n\\n".join(user_summary_parts) if user_summary_parts else "(no explicit content, meta question)"
 
     # ---- Prompt with history ----
-    prompt = f"""You are LIFT, an AI assistant for faculty.
+    prompt = f\"\"\"You are LIFT, an AI assistant for faculty.
 
 You specialize in generating and refining teaching materials:
 - Learning outcomes
@@ -598,7 +668,7 @@ New Content (for this turn):
 
 Respond with clear, faculty-facing teaching materials. If the user asks meta-questions about LIFT itself,
 answer those directly and clearly.
-"""
+\"\"\"  # noqa: E501
 
     try:
         resp = model.generate_content(prompt)
@@ -624,4 +694,3 @@ if __name__ == "__main__":
     # For local dev only. In production (Koyeb), you'll typically use gunicorn via Dockerfile.
     port = int(os.getenv("PORT", "8080"))
     app.run(host="0.0.0.0", port=port)
-
