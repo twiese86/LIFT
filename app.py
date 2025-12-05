@@ -613,7 +613,7 @@ def generate_content():
     if uploaded_file and uploaded_file.filename:
         try:
             file_text = uploaded_file.read().decode("utf-8", errors="ignore")
-            combined_text += file_text + "\\n"
+            combined_text += file_text + "\n"
         except Exception as e:
             return jsonify({"error": f"Failed to read file: {e}"}), 400
 
@@ -630,15 +630,19 @@ def generate_content():
     # Build a user message summary to store in memory (smaller than full content)
     user_summary_parts = []
     if instructions.strip():
-        user_summary_parts.append("Instructions:\\n" + instructions.strip())
+        user_summary_parts.append("Instructions:\n" + instructions.strip())
     if combined_text.strip():
         snippet = combined_text.strip()[:USER_SNIPPET_CHARS]
-        user_summary_parts.append("Content snippet:\\n" + snippet)
+        user_summary_parts.append("Content snippet:\n" + snippet)
 
-    user_summary = "\\n\\n".join(user_summary_parts) if user_summary_parts else "(no explicit content, meta question)"
+    user_summary = (
+        "\n\n".join(user_summary_parts)
+        if user_summary_parts
+        else "(no explicit content, meta question)"
+    )
 
     # ---- Prompt with history ----
-    prompt = f\"\"\"You are LIFT, an AI assistant for faculty.
+    prompt = f"""You are LIFT, an AI assistant for faculty.
 
 You specialize in generating and refining teaching materials:
 - Learning outcomes
@@ -668,21 +672,25 @@ New Content (for this turn):
 
 Respond with clear, faculty-facing teaching materials. If the user asks meta-questions about LIFT itself,
 answer those directly and clearly.
-\"\"\"  # noqa: E501
+"""  # noqa: E501
 
     try:
         resp = model.generate_content(prompt)
         output_text = getattr(resp, "text", None) or ""
 
         # ---- Update conversation history ----
-        history.append({
-            "role": "user",
-            "content": user_summary,
-        })
-        history.append({
-            "role": "assistant",
-            "content": output_text[:ASSISTANT_SNIPPET_CHARS],
-        })
+        history.append(
+            {
+                "role": "user",
+                "content": user_summary,
+            }
+        )
+        history.append(
+            {
+                "role": "assistant",
+                "content": output_text[:ASSISTANT_SNIPPET_CHARS],
+            }
+        )
         _save_history(history)
 
         return jsonify({"generated_text": output_text})
