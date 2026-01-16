@@ -113,7 +113,7 @@ def ui():
                 <div class="avatar">L</div>
                 <div class="bubble">
                   <div class="name">LIFT</div>
-                  <div class="bubble-body">Hi! Select a use case below, paste course content or upload a .txt file, and I'll generate specialized teaching materials for you.</div>
+                  <div class="bubble-body">Hi! Select a use case below, upload a .txt file, and I'll generate specialized teaching materials for you.</div>
                 </div>
               </div>
             </div>
@@ -132,7 +132,7 @@ def ui():
                   </select>
                 </div>
                 <div class="field">
-                  <label for="file">Or Upload Custom Use Case Instructions(.txt)</label>
+                  <label for="file">or upload a custom use case</label>
                   <input id="file" type="file" name="file" accept=".txt" />
                 </div>
               </div>
@@ -196,16 +196,18 @@ def ui():
           const instructions = document.getElementById('instructions').value.trim();
           const useCaseSelect = document.getElementById('use_case');
           const useCaseText = useCaseSelect.options[useCaseSelect.selectedIndex].text;
-          const file = document.getElementById('file').files[0];
+          const fileInput = document.getElementById('file');
+          const file = fileInput.files[0];
 
           if (!instructions && !file) {{
-            errorBox.textContent = 'Provide content or instructions.';
+            errorBox.textContent = 'Provide instructions or upload a file.';
             errorBox.style.display = 'block';
             return;
           }}
 
           let summaryParts = [`<strong>Mode:</strong> ${{useCaseText}}`];
           if (instructions) summaryParts.push('<strong>Instructions:</strong><br>' + formatWithBreaks(instructions));
+          if (file) summaryParts.push('<strong>File:</strong> ' + escapeHTML(file.name));
 
           addMessage('user', summaryParts.join('<br><br>'));
           const typingMsg = addMessage('assistant', '<span class="typing-dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>');
@@ -246,7 +248,6 @@ def _build_history_block(history):
 
 @app.route("/generate-content", methods=["POST"])
 def generate_content():
-    text_input = request.form.get("text_input", "") or ""
     instructions = request.form.get("instructions", "") or ""
     use_case_key = request.form.get("use_case", "none")
     uploaded_file = request.files.get("file")
@@ -260,16 +261,13 @@ def generate_content():
         except Exception as e:
             return jsonify({"error": f"File error: {e}"}), 400
 
-    if text_input.strip():
-        combined_text += text_input.strip()
-
     history = _get_history()
     history_block = _build_history_block(history)
 
     prompt = f"""You are LIFT, an AI assistant for faculty.
 
 STRICT OPERATING CONTEXT:
-{{use_case_context}}
+{use_case_context}
 
 General Capabilities:
 - Learning outcomes & scaffolding
@@ -277,12 +275,12 @@ General Capabilities:
 - Accessibility & Flipped classroom materials
 
 ===== PRIOR CONVERSATION =====
-{{history_block}}
+{history_block}
 ===== END PRIOR CONVERSATION =====
 
 LATEST REQUEST:
-Instructions: {{instructions}}
-Content: {{combined_text}}
+Instructions: {instructions}
+Content: {combined_text}
 
 Respond as LIFT using the specific Use Case context provided above.
 """
@@ -291,13 +289,13 @@ Respond as LIFT using the specific Use Case context provided above.
         resp = model.generate_content(prompt)
         output_text = getattr(resp, "text", "")
 
-        history.append({"role": "user", "content": f"Use Case: {{use_case_key}} | Instructions: {{instructions[:200]}}"})
+        history.append({"role": "user", "content": f"Use Case: {use_case_key} | Instructions: {instructions[:200]}"})
         history.append({"role": "assistant", "content": output_text[:ASSISTANT_SNIPPET_CHARS]})
         _save_history(history)
 
-        return jsonify({{"generated_text": output_text}})
+        return jsonify({"generated_text": output_text})
     except Exception as e:
-        return jsonify({{"error": str(e)}}), 500
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8080"))
