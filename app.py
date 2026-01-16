@@ -132,7 +132,7 @@ def ui():
                   </select>
                 </div>
                 <div class="field">
-                  <label for="file">Upload file (.txt)</label>
+                  <label for="file">or upload a custom use case</label>
                   <input id="file" type="file" name="file" accept=".txt" />
                 </div>
               </div>
@@ -140,10 +140,6 @@ def ui():
                 <div class="field">
                   <label for="instructions">Custom Instructions</label>
                   <textarea id="instructions" name="instructions" placeholder="e.g., Write 5 quiz questions..."></textarea>
-                </div>
-                <div class="field">
-                  <label for="text_input">Paste content</label>
-                  <textarea id="text_input" name="text_input" placeholder="Paste course content here..."></textarea>
                 </div>
               </div>
               <div class="actions">
@@ -197,13 +193,12 @@ def ui():
         form.addEventListener('submit', async (e) => {{
           e.preventDefault();
           errorBox.style.display = 'none';
-          const textInput = document.getElementById('text_input').value.trim();
           const instructions = document.getElementById('instructions').value.trim();
           const useCaseSelect = document.getElementById('use_case');
           const useCaseText = useCaseSelect.options[useCaseSelect.selectedIndex].text;
           const file = document.getElementById('file').files[0];
 
-          if (!textInput && !instructions && !file) {{
+          if (!instructions && !file) {{
             errorBox.textContent = 'Provide content or instructions.';
             errorBox.style.display = 'block';
             return;
@@ -211,7 +206,6 @@ def ui():
 
           let summaryParts = [`<strong>Mode:</strong> ${{useCaseText}}`];
           if (instructions) summaryParts.push('<strong>Instructions:</strong><br>' + formatWithBreaks(instructions));
-          if (textInput) summaryParts.push('<strong>Content:</strong><br>' + formatWithBreaks(textInput.slice(0, 300) + (textInput.length > 300 ? '...' : '')));
 
           addMessage('user', summaryParts.join('<br><br>'));
           const typingMsg = addMessage('assistant', '<span class="typing-dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>');
@@ -275,7 +269,7 @@ def generate_content():
     prompt = f"""You are LIFT, an AI assistant for faculty.
 
 STRICT OPERATING CONTEXT:
-{use_case_context}
+{{use_case_context}}
 
 General Capabilities:
 - Learning outcomes & scaffolding
@@ -283,12 +277,12 @@ General Capabilities:
 - Accessibility & Flipped classroom materials
 
 ===== PRIOR CONVERSATION =====
-{history_block}
+{{history_block}}
 ===== END PRIOR CONVERSATION =====
 
 LATEST REQUEST:
-Instructions: {instructions}
-Content: {combined_text}
+Instructions: {{instructions}}
+Content: {{combined_text}}
 
 Respond as LIFT using the specific Use Case context provided above.
 """
@@ -297,13 +291,13 @@ Respond as LIFT using the specific Use Case context provided above.
         resp = model.generate_content(prompt)
         output_text = getattr(resp, "text", "")
 
-        history.append({"role": "user", "content": f"Use Case: {use_case_key} | Instructions: {instructions[:200]}"})
+        history.append({"role": "user", "content": f"Use Case: {{use_case_key}} | Instructions: {{instructions[:200]}}"})
         history.append({"role": "assistant", "content": output_text[:ASSISTANT_SNIPPET_CHARS]})
         _save_history(history)
 
-        return jsonify({"generated_text": output_text})
+        return jsonify({{"generated_text": output_text}})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({{"error": str(e)}}), 500
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8080"))
