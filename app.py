@@ -132,7 +132,7 @@ def ui():
                   </select>
                 </div>
                 <div class="field">
-                  <label for="file">or upload a custom use case</label>
+                  <label for="file">Or Upload Custom Use Case Instructions</label>
                   <input id="file" type="file" name="file" accept=".txt" />
                 </div>
               </div>
