@@ -1,42 +1,3 @@
-import os
-from flask import Flask, request, jsonify, Response, session
-from flask_cors import CORS
-import google.generativeai as genai
-
-# -----------------------------
-# LIFT: Web App with Chat UI + Conversational Memory
-# -----------------------------
-
-app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
-
-app.secret_key = os.getenv("FLASK_SECRET_KEY", "change-me-in-production")
-
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-if not GEMINI_API_KEY:
-    raise RuntimeError("Set the GEMINI_API_KEY environment variable before running the app.")
-
-genai.configure(api_key=GEMINI_API_KEY)
-
-MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-model = genai.GenerativeModel(MODEL_NAME)
-
-app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024  # 10 MB uploads
-
-MAX_HISTORY_TURNS = 6
-USER_SNIPPET_CHARS = 600
-ASSISTANT_SNIPPET_CHARS = 2000
-
-# Mapping of use cases to system context
-USE_CASES = {
-    "none": "General instructional support.",
-    "uc1": "Context: Rapid Course Material Development. Focus on reducing prep time for new faculty by generating outlines, lecture notes, and presentations from provided research/OER materials.",
-    "uc2": "Context: Accessible Multi-Format Learning. Focus on ADA compliance, generating transcripts, alt-text, simplified summaries, and screen-reader-optimized content.",
-    "uc3": "Context: Automated Assessment & Rubrics. Focus on authentic assessments, Bloom's Taxonomy alignment, analytical rubrics, and misconception guides.",
-    "uc4": "Context: Flipped Classroom. Focus on pre-class video scripts, interactive quizzes, and in-class active learning activities/worksheets.",
-    "uc5": "Context: Cross-Disciplinary Revision. Focus on modernizing curriculum, integrating diverse perspectives, and ACRL Information Literacy Framework alignment."
-}
-
 @app.route("/", methods=["GET"])
 def ui():
     html = f"""
@@ -113,7 +74,7 @@ def ui():
                 <div class="avatar">L</div>
                 <div class="bubble">
                   <div class="name">LIFT</div>
-                  <div class="bubble-body">Hi! Select a use case below, paste course content or upload a .txt file, and I'll generate specialized teaching materials for you.</div>
+                  <div class="bubble-body">Hi! Select a use case below, provide your instructions or upload a .txt file, and I'll generate specialized teaching materials for you.</div>
                 </div>
               </div>
             </div>
@@ -132,18 +93,14 @@ def ui():
                   </select>
                 </div>
                 <div class="field">
-                  <label for="file">Upload file (.txt)</label>
+                  <label for="file">Or upload a custom use case:</label>
                   <input id="file" type="file" name="file" accept=".txt" />
                 </div>
               </div>
               <div class="form-row">
                 <div class="field">
                   <label for="instructions">Custom Instructions</label>
-                  <textarea id="instructions" name="instructions" placeholder="e.g., Write 5 quiz questions..."></textarea>
-                </div>
-                <div class="field">
-                  <label for="text_input">Paste content</label>
-                  <textarea id="text_input" name="text_input" placeholder="Paste course content here..."></textarea>
+                  <textarea id="instructions" name="instructions" placeholder="e.g., Write 5 quiz questions based on the uploaded material..."></textarea>
                 </div>
               </div>
               <div class="actions">
@@ -197,21 +154,20 @@ def ui():
         form.addEventListener('submit', async (e) => {{
           e.preventDefault();
           errorBox.style.display = 'none';
-          const textInput = document.getElementById('text_input').value.trim();
           const instructions = document.getElementById('instructions').value.trim();
           const useCaseSelect = document.getElementById('use_case');
           const useCaseText = useCaseSelect.options[useCaseSelect.selectedIndex].text;
           const file = document.getElementById('file').files[0];
 
-          if (!textInput && !instructions && !file) {{
-            errorBox.textContent = 'Provide content or instructions.';
+          if (!instructions && !file) {{
+            errorBox.textContent = 'Provide instructions or upload a file.';
             errorBox.style.display = 'block';
             return;
           }}
 
           let summaryParts = [`<strong>Mode:</strong> ${{useCaseText}}`];
           if (instructions) summaryParts.push('<strong>Instructions:</strong><br>' + formatWithBreaks(instructions));
-          if (textInput) summaryParts.push('<strong>Content:</strong><br>' + formatWithBreaks(textInput.slice(0, 300) + (textInput.length > 300 ? '...' : '')));
+          if (file) summaryParts.push('<strong>File:</strong> ' + escapeHTML(file.name));
 
           addMessage('user', summaryParts.join('<br><br>'));
           const typingMsg = addMessage('assistant', '<span class="typing-dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>');
@@ -235,76 +191,3 @@ def ui():
     </html>
     """
     return Response(html, mimetype="text/html")
-
-@app.route("/healthz", methods=["GET"])
-def healthz():
-    return jsonify({"status": "ok"})
-
-def _get_history():
-    return session.get("lift_history", [])
-
-def _save_history(history):
-    session["lift_history"] = history[-MAX_HISTORY_TURNS:]
-
-def _build_history_block(history):
-    if not history: return "No prior conversation.\n"
-    return "\n".join([f"{turn['role'].upper()}:\n{turn['content']}\n" for turn in history])
-
-@app.route("/generate-content", methods=["POST"])
-def generate_content():
-    text_input = request.form.get("text_input", "") or ""
-    instructions = request.form.get("instructions", "") or ""
-    use_case_key = request.form.get("use_case", "none")
-    uploaded_file = request.files.get("file")
-
-    use_case_context = USE_CASES.get(use_case_key, USE_CASES["none"])
-
-    combined_text = ""
-    if uploaded_file and uploaded_file.filename:
-        try:
-            combined_text += uploaded_file.read().decode("utf-8", errors="ignore") + "\n"
-        except Exception as e:
-            return jsonify({"error": f"File error: {e}"}), 400
-
-    if text_input.strip():
-        combined_text += text_input.strip()
-
-    history = _get_history()
-    history_block = _build_history_block(history)
-
-    prompt = f"""You are LIFT, an AI assistant for faculty.
-
-STRICT OPERATING CONTEXT:
-{use_case_context}
-
-General Capabilities:
-- Learning outcomes & scaffolding
-- Summary & Quiz generation (Bloom’s alignment)
-- Accessibility & Flipped classroom materials
-
-===== PRIOR CONVERSATION =====
-{history_block}
-===== END PRIOR CONVERSATION =====
-
-LATEST REQUEST:
-Instructions: {instructions}
-Content: {combined_text}
-
-Respond as LIFT using the specific Use Case context provided above.
-"""
-
-    try:
-        resp = model.generate_content(prompt)
-        output_text = getattr(resp, "text", "")
-
-        history.append({"role": "user", "content": f"Use Case: {use_case_key} | Instructions: {instructions[:200]}"})
-        history.append({"role": "assistant", "content": output_text[:ASSISTANT_SNIPPET_CHARS]})
-        _save_history(history)
-
-        return jsonify({"generated_text": output_text})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-if __name__ == "__main__":
-    port = int(os.getenv("PORT", "8080"))
-    app.run(host="0.0.0.0", port=port)
