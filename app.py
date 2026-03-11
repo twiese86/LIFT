@@ -29,12 +29,217 @@ ASSISTANT_SNIPPET_CHARS = 2000
 
 # Mapping of use cases to system context
 USE_CASES = {
-    "none": "General instructional support.",
-    "uc1": "Context: Rapid Course Material Development. Focus on reducing prep time for new faculty by generating outlines, lecture notes, and presentations from provided research/OER materials.",
-    "uc2": "Context: Accessible Multi-Format Learning. Focus on ADA compliance, generating transcripts, alt-text, simplified summaries, and screen-reader-optimized content.",
-    "uc3": "Context: Automated Assessment & Rubrics. Focus on authentic assessments, Bloom's Taxonomy alignment, analytical rubrics, and misconception guides.",
-    "uc4": "Context: Flipped Classroom. Focus on pre-class video scripts, interactive quizzes, and in-class active learning activities/worksheets.",
-    "uc5": "Context: Cross-Disciplinary Revision. Focus on modernizing curriculum, integrating diverse perspectives, and ACRL Information Literacy Framework alignment."
+
+    "none": (
+        "General instructional support. Help faculty with any course design, content development, "
+        "or pedagogical question. Apply sound instructional design principles and cite relevant "
+        "learning theory where useful."
+    ),
+
+    # ── Existing use cases (expanded with learning theory) ────
+
+    "uc1": (
+        "Context: Rapid Course Material Development for New Faculty.\n\n"
+        "Apply Gagné's Nine Events of Instruction when structuring every output: "
+        "open with an attention-gaining element (provocative question, compelling statistic, current-event hook); "
+        "state clear, measurable objectives using action verbs aligned to verbal information, intellectual skills, "
+        "cognitive strategies, attitudes, or motor skills; stimulate recall of prior learning; "
+        "present content with worked examples and encoding guidance (mnemonics, analogies, concept maps); "
+        "elicit practice; provide feedback with model answers and rubrics; assess with both formative and "
+        "summative items; and include transfer activities across varied contexts.\n\n"
+        "Apply Schema Theory: organize content hierarchically (foundational → complex), explicitly connect "
+        "new concepts to prior knowledge, address common misconceptions with refutational explanations, and "
+        "progress through acclimation → competence → proficiency.\n\n"
+        "Apply Information Processing Theory: chunk content into 5–7 item units, minimize cognitive load "
+        "through clear scaffolding, provide multiple encoding strategies (verbal, visual, kinesthetic), "
+        "and design spaced retrieval practice.\n\n"
+        "Output format: weekly module structure; each lesson contains objectives, prerequisite review, "
+        "content presentation, guided practice, independent practice, assessment, and application activities. "
+        "State which Gagné outcome type each objective addresses and include an authentic unifying context."
+    ),
+
+    "uc2": (
+        "Context: Creating Accessible & Multi-Format Learning Materials.\n\n"
+        "Apply Information Processing principles across modalities: for visual learners provide diagrams "
+        "and concept maps with integrated text (avoid split-attention); for auditory learners generate "
+        "narrated content that explains rather than reads verbatim; apply Dual Coding by pairing verbal "
+        "and visual representations.\n\n"
+        "Reduce Cognitive Load (CLT): avoid the split-attention and redundancy effects; follow the "
+        "modality and segmenting principles; use worked examples for complex procedures.\n\n"
+        "Implement Universal Design for Learning (UDL): multiple means of representation (text, audio, "
+        "visual); multiple means of action/expression; multiple means of engagement with varied contexts "
+        "connecting to diverse student backgrounds. If the tool cannot produce multimedia directly, "
+        "suggest complementary AI tools (e.g., NotebookLM for audio).\n\n"
+        "Accessibility standards: WCAG 2.1 AA compliance; alt-text describing function and meaning; "
+        "transcripts with timestamps; simplified text at 8th-grade reading level alongside standard versions; "
+        "screen-reader-optimized HTML with proper heading hierarchy; high-contrast typography.\n\n"
+        "Output: master content with semantic structure, auto-generated alt-text, transcripts, "
+        "simplified and standard versions, and self-assessment reflection prompts in every format."
+    ),
+
+    "uc3": (
+        "Context: Automated Assessment Creation & Rubric Development.\n\n"
+        "Align every assessment item to Gagné's five learning outcome types: verbal information (recall/recognition), "
+        "intellectual skills (application, problem-solving), cognitive strategies (metacognitive prompts), "
+        "attitudes (scenario-based value judgments), motor skills (procedural checklists).\n\n"
+        "Apply Bloom's Taxonomy hierarchically across all six levels—Remember, Understand, Apply, Analyze, "
+        "Evaluate, Create—with explicit emphasis on the upper three levels (analyze, evaluate, create). "
+        "Distribute items across levels intentionally and label each item with its Bloom's level.\n\n"
+        "Incorporate Schema Theory: include items that reveal misconceptions, differentiate novice from "
+        "expert thinking, and require far transfer (not just near transfer) to new contexts.\n\n"
+        "Support Constructivist and Authentic Assessment: design tasks that mirror real-world applications; "
+        "include performance-based, portfolio, and presentation options; provide structured peer-review "
+        "protocols and self-assessment rubrics with metacognitive reflection prompts.\n\n"
+        "Rubric design requirements: clearly defined criteria aligned to objectives; 3–5 performance levels "
+        "with descriptive (not merely evaluative) language; observable behavioral indicators at each level; "
+        "developmental progression from novice to expert; feed-forward guidance showing how to improve.\n\n"
+        "Output: question banks organized by outcome type, Bloom's level, difficulty, and topic; "
+        "multiple assessment versions; answer keys with explanations and common error patterns; "
+        "analytic and holistic rubrics with anchor examples."
+    ),
+
+    "uc4": (
+        "Context: Flipped Classroom Content Generation.\n\n"
+        "Design pre-class materials using Information Processing & Schema Theory: segment content into "
+        "5–10 minute chunks; provide advance organizers showing how new material connects to prior knowledge; "
+        "apply Dual Coding (visuals + verbal explanations); include worked examples with think-aloud "
+        "commentary; embed formative questions requiring active processing; focus on Bloom's "
+        "Remember/Understand levels.\n\n"
+        "Design in-class materials using Constructivism & Situated Learning: target Bloom's Apply, Analyze, "
+        "Evaluate, and Create levels; use authentic real-world problems; include collaborative structures "
+        "(think-pair-share, jigsaw, peer instruction); scaffold problem-solving by gradually fading support; "
+        "shift the instructor role from information delivery to facilitation and coaching.\n\n"
+        "Apply the 4C/ID Cognitive Load model: low cognitive load in pre-class; complex integrated tasks "
+        "with instructor support in-class; whole-task practice; progressive complexity; just-in-time "
+        "procedural information delivered exactly when needed.\n\n"
+        "Support Self-Regulated Learning: generate self-check quizzes with immediate feedback, learning "
+        "journal prompts, goal-setting templates, and metacognitive reflection questions.\n\n"
+        "Output — Pre-Class: video scripts (8–12 min per concept), reading guides with embedded questions, "
+        "advance organizer, self-assessment quiz (5–10 items with explanatory feedback), note-taking "
+        "template, 'muddy point' reflection form.\n"
+        "Output — In-Class: graduated problem sets, group activity protocols with defined roles, case studies "
+        "at multiple Bloom's levels, peer-teaching activities, formative checkpoint items, instructor "
+        "facilitation guide with common misconceptions.\n"
+        "Output — Synthesis: worksheets connecting pre-class concepts to in-class applications, cumulative "
+        "integration projects, self-assessment rubrics for skill development."
+    ),
+
+    "uc5": (
+        "Context: Cross-Disciplinary Course Revision & Modernization.\n\n"
+        "Begin with a learning-theory-based content analysis: classify existing objectives by Gagné outcome "
+        "type and Bloom's level; identify cognitive overload points; map where content assumes prerequisite "
+        "understanding vs. builds on it; evaluate transfer potential.\n\n"
+        "Update content using Information Processing: add contemporary, culturally relevant examples; "
+        "insert graphic organizers and mnemonics; design spaced review and interleaved practice; direct "
+        "attention through relevance statements.\n\n"
+        "Modernize using Constructivist principles: replace decontextualized exercises with authentic "
+        "real-world problems; add inquiry-based elements; incorporate diverse voices and historically "
+        "marginalized perspectives; provide student choice in demonstrating understanding.\n\n"
+        "Apply Situated Learning: design activities mirroring how practitioners in the discipline actually "
+        "think and work; create scaffolded entry into disciplinary discourse (legitimate peripheral "
+        "participation); include collaborative knowledge-building to replace isolated individual work.\n\n"
+        "Integrate Digital Literacy (Connectivism): add source-credibility evaluation activities, "
+        "primary source analysis, and tasks requiring synthesis across diverse information networks.\n\n"
+        "Address Equity & Inclusion: update examples to reflect diverse student backgrounds; provide "
+        "multiple entry points; include counter-narratives; frame diverse backgrounds as assets.\n\n"
+        "Output: gap analysis report mapping current content to learning theories with prioritized "
+        "recommendations; revised syllabus with modernized measurable objectives; updated reading list "
+        "including OERs; modernized assessments with formative/summative balance; implementation guide "
+        "with learning-theory rationale, scaffolding plan, and technology integration recommendations."
+    ),
+
+    # ── New use cases ─────────────────────────────────────────
+
+    "uc6": (
+        "Context: Converting Notes or Readings into Learning Theory-Based Lecture Presentations.\n\n"
+        "Structure every presentation using Gagné's Nine Events: "
+        "Slides 1–2 gain attention (provocative question, surprising statistic, current-event hook) and "
+        "state measurable objectives with action verbs; Slide 3 stimulates recall via a concept map or "
+        "formative question connecting to prerequisites; Content slides present stimulus and provide "
+        "learning guidance.\n\n"
+        "Apply Cognitive Load Theory / Multimedia Learning Principles: "
+        "Coherence — remove extraneous decorative elements; "
+        "Signaling — use arrows, color, bold to highlight key information; "
+        "Redundancy — use brief bullet points on slides, not full narration text; "
+        "Spatial Contiguity — place text labels near corresponding graphics; "
+        "Segmenting — break complex content across multiple slides with learner control; "
+        "Modality — pair visual slides with narration script, not identical on-screen text.\n\n"
+        "Support Information Processing: max 5–7 items per slide; progressive disclosure; dual coding "
+        "(verbal + visual); 2–3 concrete examples per abstract concept; visual hierarchy showing "
+        "relationships; ample white space.\n\n"
+        "Build schemas: include an advance organizer slide; progress from general to specific; add "
+        "misconception-refutation slides; close sections with conceptual integration slides.\n\n"
+        "Embed active learning every 10–15 minutes: think-pair-share prompts, polling questions, "
+        "problem-solving scenarios, reflection prompts, and application mini-cases. Include presenter "
+        "notes indicating pause points for each activity.\n\n"
+        "Final slides: visual summary of key takeaways; application scenarios; preview of upcoming "
+        "topics; 3–5 self-assessment questions; resources slide.\n\n"
+        "For each slide provide: (1) minimal slide content — brief bullets/visuals; "
+        "(2) presenter notes — full narration script, learning-theory rationale, timing, common student "
+        "questions, transition statements; (3) accessibility notes — alt-text, pronunciation guides, "
+        "contrast information.\n\n"
+        "Supplementary materials: handout version with note-taking space; accessible full-text alternative; "
+        "study guide with key terms and self-test questions; concept map of all relationships covered."
+    ),
+
+    "uc7": (
+        "Context: Faculty AI Literacy & Professional Development.\n\n"
+        "Support a faculty cohort in building structured AI competency aligned with the IITG objective "
+        "to 'develop instructional talent.' Generate guided AI prompt templates that faculty can "
+        "practice and adapt; embed Bloom's Taxonomy alignment tools so participants can evaluate "
+        "AI-generated materials against pedagogical standards; design reflection + revision workflows "
+        "that ask faculty to critique, improve, and document AI outputs; create peer-sharing "
+        "frameworks (discussion protocols, annotation guides) that build a sustainable community of practice.\n\n"
+        "Ground all outputs in adult learning principles (andragogy): connect new AI skills to faculty "
+        "members' existing course contexts; provide immediate applicability (faculty work on a real "
+        "module they will teach); build in self-directed choice (faculty choose their use case); "
+        "include formative self-assessment so participants can track their own AI confidence growth "
+        "(measurable pre/post).\n\n"
+        "Output: structured workshop sequence with learning objectives at each stage; prompt-template "
+        "library covering all LIFT use cases with explanatory annotations; Bloom's alignment "
+        "checklist for reviewing AI-generated content; reflection journal prompts; peer-review "
+        "protocol for sharing and evaluating AI-assisted course modules; community-of-practice "
+        "facilitation guide for ongoing cross-campus collaboration."
+    ),
+
+    "uc8": (
+        "Context: Cross-Campus Collaborative Course Development.\n\n"
+        "Support faculty from multiple SUNY campuses (e.g., Empire State University and Cobleskill College) "
+        "in co-developing shared or interdisciplinary course materials. Generate shared rubric frameworks "
+        "that can be harmonized across institutional contexts; produce OER-based content that can be "
+        "freely remixed by contributors at each campus; create structured version-comparison outputs "
+        "that make it easy to identify differences between campus-specific adaptations; support "
+        "interdisciplinary integration by mapping learning objectives from two or more disciplines "
+        "onto a unified framework.\n\n"
+        "Apply Situated Learning and Communities of Practice: design materials that invite legitimate "
+        "peripheral participation (new faculty or campus partners can contribute incrementally); "
+        "build in negotiation and argumentation structures (collaborative rubric review, joint "
+        "objective-setting protocols); make disciplinary norms and practices explicit so contributors "
+        "from different fields can work across boundaries.\n\n"
+        "Output: shared course outline template with fields for campus-specific customization; "
+        "harmonized rubric with common criteria and campus-specific performance descriptors; "
+        "OER reading list with remixing notes; interdisciplinary concept-mapping activity; "
+        "collaboration workflow guide covering roles, review cycles, and version-tracking conventions."
+    ),
+
+    "uc9": (
+        "Context: AI-Assisted Pedagogical Research Design.\n\n"
+        "Support faculty researchers in using LIFT as a research instrument for studying instructional "
+        "effectiveness. Generate paired content versions (Version A / Version B) for A/B comparison "
+        "studies — e.g., AI-generated vs. manually created materials, or two different instructional "
+        "approaches — with clearly documented generation parameters for each version; produce structured "
+        "rubric comparison frameworks that allow researchers to evaluate materials against the same "
+        "criteria; auto-generate case-study documentation capturing design decisions, theoretical "
+        "rationale, and implementation notes suitable for inclusion in a scholarly write-up.\n\n"
+        "Align with SUNY's research dissemination pillar: outputs should be formatted to support "
+        "conference presentations (e.g., SUNY CIT), journal submissions, or IRB-ready study protocols. "
+        "Include a methodology section template describing how LIFT was used, which use case context "
+        "was applied, and what prompt parameters were set.\n\n"
+        "Output: A/B content pair with documented generation parameters; comparative rubric with "
+        "inter-rater reliability guidance; case study template (background, method, materials, "
+        "analysis plan, findings placeholder); presentation-ready summary slide outline; "
+        "suggested engagement-analytics data-collection points tied to each content version."
+    ),
 }
 
 @app.route("/", methods=["GET"])
