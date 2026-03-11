@@ -327,13 +327,17 @@ def ui():
               <div class="form-row">
                 <div class="field">
                   <label for="use_case">Select a Use Case</label>
-                  <select id="use_case" name="use_case">
+                <select id="use_case" name="use_case">
                     <option value="none">General / No Specific Use Case</option>
                     <option value="uc1">Use Case 1: Rapid Course Material Development</option>
                     <option value="uc2">Use Case 2: Accessible Multi-Format Materials</option>
-                    <option value="uc3">Use Case 3: Assessment & Rubric Development</option>
+                    <option value="uc3">Use Case 3: Assessment &amp; Rubric Development</option>
                     <option value="uc4">Use Case 4: Flipped Classroom Content</option>
                     <option value="uc5">Use Case 5: Cross-Disciplinary Revision</option>
+                    <option value="uc6">Use Case 6: Lecture Presentation Creator</option>
+                    <option value="uc7">Use Case 7: Faculty AI Literacy &amp; Development</option>
+                    <option value="uc8">Use Case 8: Cross-Campus Collaborative Design</option>
+                    <option value="uc9">Use Case 9: Pedagogical Research Design</option>
                   </select>
                 </div>
                 <div class="field">
