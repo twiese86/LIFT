@@ -495,7 +495,7 @@ Respond as LIFT using the specific Use Case context provided above.
 """
 
     try:
-        resp = model.generate_content(prompt)
+        resp = model.generate_content(prompt, request_options={"timeout": 110})
         output_text = getattr(resp, "text", "")
 
         history.append({"role": "user", "content": f"Use Case: {use_case_key} | Instructions: {instructions[:200]}"})
