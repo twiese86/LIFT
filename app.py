@@ -3,7 +3,7 @@ import json
 from io import BytesIO
 from flask import Flask, request, jsonify, Response, session, send_file
 from flask_cors import CORS
-import google.genai as genai
+import google.generativeai as genai
 from docx import Document
 from pptx import Presentation
 from pptx.util import Inches, Pt
@@ -336,7 +336,7 @@ def ui():
               <div class="pill">L</div>
               <div>
                 <h1>LIFT: Learning Innovation Faculty Tool</h1>
-                <p class="subtitle">Chat with LIFT using course content + a prompt. Upload a .docx to generate a PowerPoint.</p>
+                <p class="subtitle">Chat with LIFT using course content + a prompt, or generate a PowerPoint from your prompt.</p>
               </div>
             </div>
           </header>
@@ -347,7 +347,7 @@ def ui():
                 <div class="avatar">L</div>
                 <div class="bubble">
                   <div class="name">LIFT</div>
-                  <div class="bubble-body">Hi! Select a use case below, upload a .txt or .docx file, and I'll generate specialized teaching materials for you. You can also upload a .docx to generate a PowerPoint presentation.</div>
+                  <div class="bubble-body">Hi! Select a use case, enter a prompt, and optionally upload a .txt or .docx file. Click <strong>Generate with LIFT</strong> for a text response, or <strong>Generate as PowerPoint</strong> to download a .pptx.</div>
                 </div>
               </div>
             </div>
@@ -384,47 +384,13 @@ def ui():
               </div>
               <div class="actions">
                 <div class="muted">Conversation memory is enabled per browser.</div>
-                <button type="submit"><span>Generate with LIFT</span></button>
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                  <button type="submit"><span>Generate with LIFT</span></button>
+                  <button type="button" class="btn-ppt" id="ppt-btn">&#9654; Generate as PowerPoint</button>
+                </div>
               </div>
               <div id="error" class="error-text" style="display:none;"></div>
-            </form>
-
-            <!-- ── PowerPoint Generation Form ── -->
-            <div class="ppt-section-title">Generate PowerPoint from .docx</div>
-            <form id="ppt-form" class="ppt-wrapper">
-              <div class="form-row">
-                <div class="field">
-                  <label for="ppt_use_case">Use Case Context for Slides</label>
-                  <select id="ppt_use_case" name="ppt_use_case">
-                    <option value="none">General / No Specific Use Case</option>
-                    <option value="uc1">Use Case 1: Rapid Course Material Development</option>
-                    <option value="uc2">Use Case 2: Accessible Multi-Format Materials</option>
-                    <option value="uc3">Use Case 3: Assessment &amp; Rubric Development</option>
-                    <option value="uc4">Use Case 4: Flipped Classroom Content</option>
-                    <option value="uc5">Use Case 5: Cross-Disciplinary Revision</option>
-                    <option value="uc6">Use Case 6: Lecture Presentation Creator</option>
-                    <option value="uc7">Use Case 7: Faculty AI Literacy &amp; Development</option>
-                    <option value="uc8">Use Case 8: Cross-Campus Collaborative Design</option>
-                    <option value="uc9">Use Case 9: Pedagogical Research Design</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="docx_file">Upload .docx file</label>
-                  <input id="docx_file" type="file" name="docx_file" accept=".docx" />
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="field">
-                  <label for="ppt_instructions">Prompt (optional)</label>
-                  <textarea id="ppt_instructions" name="ppt_instructions" placeholder="e.g., Focus on weeks 1–4, audience is undergraduates..." style="min-height:50px;"></textarea>
-                </div>
-              </div>
-              <div class="actions">
-                <div class="muted">Generates a .pptx file with presenter notes.</div>
-                <button type="button" class="btn-ppt" id="ppt-btn">&#9654; Generate PowerPoint</button>
-              </div>
-              <div id="ppt-error" class="error-text" style="display:none;"></div>
-              <div id="ppt-status" class="muted" style="display:none;"></div>
+              <div id="ppt-status" class="muted" style="display:none;margin-top:0.25rem;"></div>
             </form>
           </main>
 
@@ -506,60 +472,52 @@ def ui():
           }}
         }});
 
-        // ── PPT form handler ──
+        // ── PPT button handler (uses the same main form fields) ──
         document.getElementById('ppt-btn').addEventListener('click', async () => {{
-          const pptError = document.getElementById('ppt-error');
           const pptStatus = document.getElementById('ppt-status');
           const pptBtn = document.getElementById('ppt-btn');
-          const docxFile = document.getElementById('docx_file').files[0];
+          const instructions = document.getElementById('instructions').value.trim();
+          const fileInput = document.getElementById('file');
+          const file = fileInput.files[0];
+          errorBox.style.display = 'none';
 
-          pptError.style.display = 'none';
-          pptStatus.style.display = 'none';
-
-          if (!docxFile) {{
-            pptError.textContent = 'Please upload a .docx file.';
-            pptError.style.display = 'block';
+          if (!instructions && !file) {{
+            errorBox.textContent = 'Provide a prompt or upload a file before generating a PowerPoint.';
+            errorBox.style.display = 'block';
             return;
           }}
 
           pptBtn.disabled = true;
-          pptStatus.textContent = 'Generating your PowerPoint... this may take up to 60 seconds.';
+          submitBtn.disabled = true;
+          pptStatus.textContent = 'Generating your PowerPoint\u2026 this may take up to 60 seconds.';
           pptStatus.style.display = 'block';
 
-          const fd = new FormData();
-          fd.append('docx_file', docxFile);
-          fd.append('use_case', document.getElementById('ppt_use_case').value);
-          fd.append('instructions', document.getElementById('ppt_instructions').value);
-
           try {{
-            const res = await fetch('/generate-ppt', {{ method: 'POST', body: fd }});
+            const res = await fetch('/generate-ppt', {{ method: 'POST', body: new FormData(form) }});
             if (!res.ok) {{
               const data = await res.json();
-              pptError.textContent = 'Error: ' + (data.error || 'Failed to generate PPT.');
-              pptError.style.display = 'block';
+              errorBox.textContent = 'PPT Error: ' + (data.error || 'Failed to generate.');
+              errorBox.style.display = 'block';
               pptStatus.style.display = 'none';
             }} else {{
-              // Trigger file download
               const blob = await res.blob();
               const disposition = res.headers.get('Content-Disposition') || '';
               const match = disposition.match(/filename="(.+?)"/);
               const filename = match ? match[1] : 'LIFT_Presentation.pptx';
               const url = URL.createObjectURL(blob);
               const a = document.createElement('a');
-              a.href = url;
-              a.download = filename;
-              document.body.appendChild(a);
-              a.click();
-              a.remove();
+              a.href = url; a.download = filename;
+              document.body.appendChild(a); a.click(); a.remove();
               URL.revokeObjectURL(url);
-              pptStatus.textContent = 'PowerPoint downloaded!';
+              pptStatus.textContent = '\u2705 PowerPoint downloaded!';
             }}
           }} catch (err) {{
-            pptError.textContent = 'Network error. Please try again.';
-            pptError.style.display = 'block';
+            errorBox.textContent = 'Network error. Please try again.';
+            errorBox.style.display = 'block';
             pptStatus.style.display = 'none';
           }} finally {{
             pptBtn.disabled = false;
+            submitBtn.disabled = false;
           }}
         }});
       </script>
@@ -650,38 +608,39 @@ Respond as LIFT using the specific Use Case context provided above.
 
 @app.route("/generate-ppt", methods=["POST"])
 def generate_ppt():
+    """
+    Uses the same form fields as /generate-content (use_case, instructions, file).
+    Asks Gemini to produce structured slide JSON, then builds and returns a .pptx.
+    """
     instructions = request.form.get("instructions", "") or ""
     use_case_key = request.form.get("use_case", "none")
-    uploaded_file = request.files.get("docx_file")
+    uploaded_file = request.files.get("file")
 
-    if not uploaded_file or not uploaded_file.filename:
-        return jsonify({"error": "Please upload a .docx file."}), 400
-    if not uploaded_file.filename.lower().endswith(".docx"):
-        return jsonify({"error": "Only .docx files are supported for PPT generation."}), 400
-
-    try:
-        doc = Document(BytesIO(uploaded_file.read()))
-        docx_text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
-    except Exception as e:
-        return jsonify({"error": f"Could not read .docx file: {e}"}), 400
-
-    if not docx_text.strip():
-        return jsonify({"error": "The uploaded document appears to be empty."}), 400
+    if not instructions and (not uploaded_file or not uploaded_file.filename):
+        return jsonify({"error": "Provide a prompt or upload a file to generate a PowerPoint."}), 400
 
     use_case_context = USE_CASES.get(use_case_key, USE_CASES["none"])
-    safe_instructions = scrub_pii(instructions)
-    safe_docx = scrub_pii(docx_text)
 
-    ppt_prompt = f"""You are LIFT, an AI assistant for faculty. Convert the document below into a structured PowerPoint presentation.
+    combined_text = ""
+    if uploaded_file and uploaded_file.filename:
+        try:
+            combined_text = _extract_file_text(uploaded_file) + "\n"
+        except Exception as e:
+            return jsonify({"error": f"File error: {e}"}), 400
+
+    safe_instructions = scrub_pii(instructions)
+    safe_content = scrub_pii(combined_text)
+
+    ppt_prompt = f"""You are LIFT, an AI assistant for faculty. Generate a complete, pedagogically-structured PowerPoint presentation based on the request below.
 
 PEDAGOGICAL CONTEXT:
 {use_case_context}
 
-ADDITIONAL INSTRUCTIONS:
-{safe_instructions if safe_instructions else "None provided."}
+FACULTY REQUEST / PROMPT:
+{safe_instructions if safe_instructions else "No specific prompt provided — generate a comprehensive presentation from the content below."}
 
-DOCUMENT CONTENT:
-{safe_docx[:12000]}
+REFERENCE CONTENT (if provided):
+{safe_content[:12000] if safe_content.strip() else "None."}
 
 Return ONLY valid JSON — no markdown fences, no explanation, no extra text. Use this exact schema:
 {{
@@ -697,11 +656,11 @@ Return ONLY valid JSON — no markdown fences, no explanation, no extra text. Us
 }}
 
 Guidelines:
-- Create 10–15 content slides appropriate for the material.
-- Max 5 bullets per slide; each bullet is a concise phrase (not a full sentence).
-- Apply Gagné's Nine Events structure: attention → objectives → recall → content → practice → feedback → assess → transfer.
-- First slide = title slide (no bullets needed); last slide = summary + discussion questions.
-- Presenter notes should include narration script, pause points for active learning, and common student questions.
+- Create 10–15 slides that directly address the faculty's prompt.
+- Max 5 bullets per slide; each bullet is a concise phrase, not a full sentence.
+- Apply Gagné's Nine Events: attention → objectives → recall → content → practice → feedback → assess → transfer.
+- First slide = title/introduction; last slide = summary + discussion questions.
+- Presenter notes: full narration script, active-learning pause points, common student questions.
 """
 
     try:
