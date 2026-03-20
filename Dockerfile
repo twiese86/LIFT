@@ -13,4 +13,4 @@ COPY . .
 
 # Bind to platform port, default 8080 if not supplied
 ENV PORT=8080
-CMD ["sh", "-c", "gunicorn --timeout 120 -b 0.0.0.0:${PORT:-8080} app:app"]
+CMD ["sh", "-c", "gunicorn --timeout 150 -b 0.0.0.0:${PORT:-8080} app:app"]
