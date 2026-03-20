@@ -3,7 +3,7 @@ import json
 from io import BytesIO
 from flask import Flask, request, jsonify, Response, session, send_file
 from flask_cors import CORS
-import google.generativeai as genai
+import google.genai as genai
 from docx import Document
 from pptx import Presentation
 from pptx.util import Inches, Pt
