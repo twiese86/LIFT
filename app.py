@@ -335,7 +335,7 @@ def ui():
             <div class="title-row">
               <div class="pill">L</div>
               <div>
-                <h1>LIFT: Learning Innovation Faculty Tool</h1>
+                <h1>LIFT: Lecture and Instructional Faculty Tool</h1>
                 <p class="subtitle">Chat with LIFT using course content + a prompt, or generate a PowerPoint from your prompt.</p>
               </div>
             </div>
