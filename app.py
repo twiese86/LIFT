@@ -1,7 +1,13 @@
 import os
-from flask import Flask, request, jsonify, Response, session
+import json
+from io import BytesIO
+from flask import Flask, request, jsonify, Response, session, send_file
 from flask_cors import CORS
-import google.genai as genai
+import google.generativeai as genai
+from docx import Document
+from pptx import Presentation
+from pptx.util import Inches, Pt
+from pptx.dml.color import RGBColor
 
 # -----------------------------
 # LIFT: Web App with Chat UI + Conversational Memory
@@ -26,6 +32,23 @@ app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024  # 10 MB uploads
 MAX_HISTORY_TURNS = 6
 USER_SNIPPET_CHARS = 600
 ASSISTANT_SNIPPET_CHARS = 2000
+
+# ── PII scrubbing (lightweight regex — no heavy dependencies) ────────────────
+import re
+
+_PII_PATTERNS = [
+    (re.compile(r'\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b'), '[EMAIL]'),
+    (re.compile(r'\b(?:\+?1[\s\-.]?)?\(?\d{3}\)?[\s\-.]?\d{3}[\s\-.]?\d{4}\b'), '[PHONE]'),
+    (re.compile(r'\b\d{3}-\d{2}-\d{4}\b'), '[SSN]'),
+    (re.compile(r'\b(?:\d[ \-]?){13,16}\b'), '[CARD]'),
+    (re.compile(r'\b[A-Z][a-z]+ [A-Z][a-z]+\b'), '[NAME]'),   # simple two-word proper name
+]
+
+def scrub_pii(text: str) -> str:
+    """Redact common PII patterns before sending to the LLM."""
+    for pattern, replacement in _PII_PATTERNS:
+        text = pattern.sub(replacement, text)
+    return text
 
 # Mapping of use cases to system context
 USE_CASES = {
@@ -283,6 +306,10 @@ def ui():
         .dot:nth-child(3) {{ animation-delay: 0.4s; }}
         @keyframes blink {{ 0%, 80%, 100% {{ opacity: 0.3; }} 40% {{ opacity: 1; }} }}
         .form-wrapper {{ border-radius: 12px; border: 1px solid #e5e7eb; padding: 0.75rem 0.9rem 0.9rem; background: #ffffff; display: flex; flex-direction: column; gap: 0.5rem; }}
+        .ppt-wrapper {{ border-radius: 12px; border: 1px solid #c7d2fe; padding: 0.75rem 0.9rem 0.9rem; background: #eef2ff; display: flex; flex-direction: column; gap: 0.5rem; }}
+        .ppt-wrapper label {{ color: #3730a3; }}
+        .section-title {{ font-size: 0.75rem; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.1rem; }}
+        .ppt-section-title {{ font-size: 0.75rem; font-weight: 700; color: #3730a3; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.1rem; }}
         .form-row {{ display: flex; gap: 0.75rem; flex-wrap: wrap; }}
         .field {{ flex: 1 1 200px; display: flex; flex-direction: column; gap: 0.2rem; }}
         label {{ font-size: 0.8rem; font-weight: 600; color: #4b5563; }}
@@ -292,6 +319,8 @@ def ui():
         .actions {{ display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-top: 0.25rem; }}
         button[type="submit"] {{ padding: 0.6rem 1.2rem; border-radius: 999px; border: none; background: #111827; color: white; font-size: 0.9rem; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; }}
         button[type="submit"]:disabled {{ opacity: 0.6; cursor: default; }}
+        .btn-ppt {{ padding: 0.6rem 1.2rem; border-radius: 999px; border: none; background: #4f46e5; color: white; font-size: 0.9rem; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; }}
+        .btn-ppt:disabled {{ opacity: 0.6; cursor: default; }}
         .muted {{ color: #6b7280; font-size: 0.75rem; }}
         .error-text {{ color: #b91c1c; font-size: 0.8rem; margin-top: 0.25rem; }}
         .footer {{ border-top: 1px solid #e5e7eb; padding: 0.5rem 1.5rem 0.65rem; display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: #9ca3af; }}
@@ -307,7 +336,7 @@ def ui():
               <div class="pill">L</div>
               <div>
                 <h1>LIFT: Learning Innovation Faculty Tool</h1>
-                <p class="subtitle">Chat with LIFT using course content + custom teaching instructions.</p>
+                <p class="subtitle">Chat with LIFT using course content + a prompt. Upload a .docx to generate a PowerPoint.</p>
               </div>
             </div>
           </header>
@@ -318,16 +347,18 @@ def ui():
                 <div class="avatar">L</div>
                 <div class="bubble">
                   <div class="name">LIFT</div>
-                  <div class="bubble-body">Hi! Select a use case below, upload a .txt file, and I'll generate specialized teaching materials for you.</div>
+                  <div class="bubble-body">Hi! Select a use case below, upload a .txt or .docx file, and I'll generate specialized teaching materials for you. You can also upload a .docx to generate a PowerPoint presentation.</div>
                 </div>
               </div>
             </div>
 
+            <!-- ── Chat / Text Generation Form ── -->
+            <div class="section-title">Generate Teaching Materials</div>
             <form id="lift-form" action="/generate-content" method="POST" enctype="multipart/form-data" class="form-wrapper">
               <div class="form-row">
                 <div class="field">
                   <label for="use_case">Select a Use Case</label>
-                <select id="use_case" name="use_case">
+                  <select id="use_case" name="use_case">
                     <option value="none">General / No Specific Use Case</option>
                     <option value="uc1">Use Case 1: Rapid Course Material Development</option>
                     <option value="uc2">Use Case 2: Accessible Multi-Format Materials</option>
@@ -341,13 +372,13 @@ def ui():
                   </select>
                 </div>
                 <div class="field">
-                  <label for="file">or upload a custom use case</label>
-                  <input id="file" type="file" name="file" accept=".txt" />
+                  <label for="file">Upload content file (.txt or .docx)</label>
+                  <input id="file" type="file" name="file" accept=".txt,.docx" />
                 </div>
               </div>
               <div class="form-row">
                 <div class="field">
-                  <label for="instructions">Custom Instructions</label>
+                  <label for="instructions">Prompt</label>
                   <textarea id="instructions" name="instructions" placeholder="e.g., Write 5 quiz questions..."></textarea>
                 </div>
               </div>
@@ -356,6 +387,44 @@ def ui():
                 <button type="submit"><span>Generate with LIFT</span></button>
               </div>
               <div id="error" class="error-text" style="display:none;"></div>
+            </form>
+
+            <!-- ── PowerPoint Generation Form ── -->
+            <div class="ppt-section-title">Generate PowerPoint from .docx</div>
+            <form id="ppt-form" class="ppt-wrapper">
+              <div class="form-row">
+                <div class="field">
+                  <label for="ppt_use_case">Use Case Context for Slides</label>
+                  <select id="ppt_use_case" name="ppt_use_case">
+                    <option value="none">General / No Specific Use Case</option>
+                    <option value="uc1">Use Case 1: Rapid Course Material Development</option>
+                    <option value="uc2">Use Case 2: Accessible Multi-Format Materials</option>
+                    <option value="uc3">Use Case 3: Assessment &amp; Rubric Development</option>
+                    <option value="uc4">Use Case 4: Flipped Classroom Content</option>
+                    <option value="uc5">Use Case 5: Cross-Disciplinary Revision</option>
+                    <option value="uc6">Use Case 6: Lecture Presentation Creator</option>
+                    <option value="uc7">Use Case 7: Faculty AI Literacy &amp; Development</option>
+                    <option value="uc8">Use Case 8: Cross-Campus Collaborative Design</option>
+                    <option value="uc9">Use Case 9: Pedagogical Research Design</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="docx_file">Upload .docx file</label>
+                  <input id="docx_file" type="file" name="docx_file" accept=".docx" />
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="field">
+                  <label for="ppt_instructions">Prompt (optional)</label>
+                  <textarea id="ppt_instructions" name="ppt_instructions" placeholder="e.g., Focus on weeks 1–4, audience is undergraduates..." style="min-height:50px;"></textarea>
+                </div>
+              </div>
+              <div class="actions">
+                <div class="muted">Generates a .pptx file with presenter notes.</div>
+                <button type="button" class="btn-ppt" id="ppt-btn">&#9654; Generate PowerPoint</button>
+              </div>
+              <div id="ppt-error" class="error-text" style="display:none;"></div>
+              <div id="ppt-status" class="muted" style="display:none;"></div>
             </form>
           </main>
 
@@ -399,6 +468,7 @@ def ui():
           return wrapper;
         }}
 
+        // ── Chat form handler ──
         form.addEventListener('submit', async (e) => {{
           e.preventDefault();
           errorBox.style.display = 'none';
@@ -409,13 +479,13 @@ def ui():
           const file = fileInput.files[0];
 
           if (!instructions && !file) {{
-            errorBox.textContent = 'Provide instructions or upload a file.';
+            errorBox.textContent = 'Provide a prompt or upload a file.';
             errorBox.style.display = 'block';
             return;
           }}
 
           let summaryParts = [`<strong>Mode:</strong> ${{useCaseText}}`];
-          if (instructions) summaryParts.push('<strong>Instructions:</strong><br>' + formatWithBreaks(instructions));
+          if (instructions) summaryParts.push('<strong>Prompt:</strong><br>' + formatWithBreaks(instructions));
           if (file) summaryParts.push('<strong>File:</strong> ' + escapeHTML(file.name));
 
           addMessage('user', summaryParts.join('<br><br>'));
@@ -433,6 +503,63 @@ def ui():
           }} finally {{
             submitBtn.disabled = false;
             scrollChatToBottom();
+          }}
+        }});
+
+        // ── PPT form handler ──
+        document.getElementById('ppt-btn').addEventListener('click', async () => {{
+          const pptError = document.getElementById('ppt-error');
+          const pptStatus = document.getElementById('ppt-status');
+          const pptBtn = document.getElementById('ppt-btn');
+          const docxFile = document.getElementById('docx_file').files[0];
+
+          pptError.style.display = 'none';
+          pptStatus.style.display = 'none';
+
+          if (!docxFile) {{
+            pptError.textContent = 'Please upload a .docx file.';
+            pptError.style.display = 'block';
+            return;
+          }}
+
+          pptBtn.disabled = true;
+          pptStatus.textContent = 'Generating your PowerPoint... this may take up to 60 seconds.';
+          pptStatus.style.display = 'block';
+
+          const fd = new FormData();
+          fd.append('docx_file', docxFile);
+          fd.append('use_case', document.getElementById('ppt_use_case').value);
+          fd.append('instructions', document.getElementById('ppt_instructions').value);
+
+          try {{
+            const res = await fetch('/generate-ppt', {{ method: 'POST', body: fd }});
+            if (!res.ok) {{
+              const data = await res.json();
+              pptError.textContent = 'Error: ' + (data.error || 'Failed to generate PPT.');
+              pptError.style.display = 'block';
+              pptStatus.style.display = 'none';
+            }} else {{
+              // Trigger file download
+              const blob = await res.blob();
+              const disposition = res.headers.get('Content-Disposition') || '';
+              const match = disposition.match(/filename="(.+?)"/);
+              const filename = match ? match[1] : 'LIFT_Presentation.pptx';
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = filename;
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              URL.revokeObjectURL(url);
+              pptStatus.textContent = 'PowerPoint downloaded!';
+            }}
+          }} catch (err) {{
+            pptError.textContent = 'Network error. Please try again.';
+            pptError.style.display = 'block';
+            pptStatus.style.display = 'none';
+          }} finally {{
+            pptBtn.disabled = false;
           }}
         }});
       </script>
@@ -455,6 +582,16 @@ def _build_history_block(history):
     if not history: return "No prior conversation.\n"
     return "\n".join([f"{turn['role'].upper()}:\n{turn['content']}\n" for turn in history])
 
+def _extract_file_text(uploaded_file) -> str:
+    """Extract plain text from .txt or .docx uploads."""
+    filename = uploaded_file.filename.lower()
+    raw = uploaded_file.read()
+    if filename.endswith(".docx"):
+        doc = Document(BytesIO(raw))
+        return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+    else:
+        return raw.decode("utf-8", errors="ignore")
+
 @app.route("/generate-content", methods=["POST"])
 def generate_content():
     instructions = request.form.get("instructions", "") or ""
@@ -466,12 +603,16 @@ def generate_content():
     combined_text = ""
     if uploaded_file and uploaded_file.filename:
         try:
-            combined_text += uploaded_file.read().decode("utf-8", errors="ignore") + "\n"
+            combined_text += _extract_file_text(uploaded_file) + "\n"
         except Exception as e:
             return jsonify({"error": f"File error: {e}"}), 400
 
     history = _get_history()
     history_block = _build_history_block(history)
+
+    # Scrub PII from user-supplied text before sending to the LLM
+    safe_instructions = scrub_pii(instructions)
+    safe_content = scrub_pii(combined_text)
 
     prompt = f"""You are LIFT, an AI assistant for faculty.
 
@@ -480,7 +621,7 @@ STRICT OPERATING CONTEXT:
 
 General Capabilities:
 - Learning outcomes & scaffolding
-- Summary & Quiz generation (Bloom’s alignment)
+- Summary & Quiz generation (Bloom's alignment)
 - Accessibility & Flipped classroom materials
 
 ===== PRIOR CONVERSATION =====
@@ -488,8 +629,8 @@ General Capabilities:
 ===== END PRIOR CONVERSATION =====
 
 LATEST REQUEST:
-Instructions: {instructions}
-Content: {combined_text}
+Prompt: {safe_instructions}
+Content: {safe_content}
 
 Respond as LIFT using the specific Use Case context provided above.
 """
@@ -498,13 +639,172 @@ Respond as LIFT using the specific Use Case context provided above.
         resp = model.generate_content(prompt, request_options={"timeout": 110})
         output_text = getattr(resp, "text", "")
 
-        history.append({"role": "user", "content": f"Use Case: {use_case_key} | Instructions: {instructions[:200]}"})
+        history.append({"role": "user", "content": f"Use Case: {use_case_key} | Prompt: {instructions[:200]}"})
         history.append({"role": "assistant", "content": output_text[:ASSISTANT_SNIPPET_CHARS]})
         _save_history(history)
 
         return jsonify({"generated_text": output_text})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/generate-ppt", methods=["POST"])
+def generate_ppt():
+    instructions = request.form.get("instructions", "") or ""
+    use_case_key = request.form.get("use_case", "none")
+    uploaded_file = request.files.get("docx_file")
+
+    if not uploaded_file or not uploaded_file.filename:
+        return jsonify({"error": "Please upload a .docx file."}), 400
+    if not uploaded_file.filename.lower().endswith(".docx"):
+        return jsonify({"error": "Only .docx files are supported for PPT generation."}), 400
+
+    try:
+        doc = Document(BytesIO(uploaded_file.read()))
+        docx_text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+    except Exception as e:
+        return jsonify({"error": f"Could not read .docx file: {e}"}), 400
+
+    if not docx_text.strip():
+        return jsonify({"error": "The uploaded document appears to be empty."}), 400
+
+    use_case_context = USE_CASES.get(use_case_key, USE_CASES["none"])
+    safe_instructions = scrub_pii(instructions)
+    safe_docx = scrub_pii(docx_text)
+
+    ppt_prompt = f"""You are LIFT, an AI assistant for faculty. Convert the document below into a structured PowerPoint presentation.
+
+PEDAGOGICAL CONTEXT:
+{use_case_context}
+
+ADDITIONAL INSTRUCTIONS:
+{safe_instructions if safe_instructions else "None provided."}
+
+DOCUMENT CONTENT:
+{safe_docx[:12000]}
+
+Return ONLY valid JSON — no markdown fences, no explanation, no extra text. Use this exact schema:
+{{
+  "title": "Presentation Title",
+  "subtitle": "Optional subtitle or course name",
+  "slides": [
+    {{
+      "title": "Slide Title",
+      "bullets": ["Key point 1", "Key point 2", "Key point 3"],
+      "notes": "Full presenter notes with learning-theory rationale and timing guidance."
+    }}
+  ]
+}}
+
+Guidelines:
+- Create 10–15 content slides appropriate for the material.
+- Max 5 bullets per slide; each bullet is a concise phrase (not a full sentence).
+- Apply Gagné's Nine Events structure: attention → objectives → recall → content → practice → feedback → assess → transfer.
+- First slide = title slide (no bullets needed); last slide = summary + discussion questions.
+- Presenter notes should include narration script, pause points for active learning, and common student questions.
+"""
+
+    try:
+        resp = model.generate_content(ppt_prompt, request_options={"timeout": 110})
+        raw = (getattr(resp, "text", "") or "").strip()
+
+        # Strip any accidental markdown code fences
+        if raw.startswith("```"):
+            parts = raw.split("```")
+            raw = parts[1] if len(parts) > 1 else raw
+            if raw.startswith("json"):
+                raw = raw[4:]
+            raw = raw.strip()
+
+        slide_data = json.loads(raw)
+    except json.JSONDecodeError as e:
+        return jsonify({"error": f"AI returned malformed JSON: {e}. Try again or simplify your document."}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    # ── Build the PowerPoint ──────────────────────────────────
+    try:
+        prs = Presentation()
+        prs.slide_width  = Inches(13.33)
+        prs.slide_height = Inches(7.5)
+
+        INDIGO = RGBColor(0x4F, 0x46, 0xE5)
+        WHITE  = RGBColor(0xFF, 0xFF, 0xFF)
+        DARK   = RGBColor(0x11, 0x18, 0x27)
+
+        def _set_font(run, size_pt, bold=False, color=None):
+            run.font.size = Pt(size_pt)
+            run.font.bold = bold
+            if color:
+                run.font.color.rgb = color
+
+        # Title slide (layout 0)
+        title_slide = prs.slides.add_slide(prs.slide_layouts[0])
+        title_slide.background.fill.solid()
+        title_slide.background.fill.fore_color.rgb = INDIGO
+
+        ts_title = title_slide.shapes.title
+        ts_title.text = slide_data.get("title", "LIFT Presentation")
+        for para in ts_title.text_frame.paragraphs:
+            for run in para.runs:
+                _set_font(run, 36, bold=True, color=WHITE)
+
+        if len(title_slide.placeholders) > 1:
+            ts_sub = title_slide.placeholders[1]
+            ts_sub.text = slide_data.get("subtitle", "")
+            for para in ts_sub.text_frame.paragraphs:
+                for run in para.runs:
+                    _set_font(run, 20, color=RGBColor(0xC7, 0xD2, 0xFE))
+
+        # Content slides (layout 1 — title + content)
+        for slide_info in slide_data.get("slides", []):
+            slide = prs.slides.add_slide(prs.slide_layouts[1])
+
+            # Title
+            sh_title = slide.shapes.title
+            sh_title.text = slide_info.get("title", "")
+            for para in sh_title.text_frame.paragraphs:
+                for run in para.runs:
+                    _set_font(run, 24, bold=True, color=INDIGO)
+
+            # Bullets
+            bullets = slide_info.get("bullets", [])
+            if len(slide.placeholders) > 1:
+                tf = slide.placeholders[1].text_frame
+                tf.clear()
+                for i, bullet in enumerate(bullets):
+                    if i == 0:
+                        tf.paragraphs[0].text = bullet
+                        para = tf.paragraphs[0]
+                    else:
+                        para = tf.add_paragraph()
+                        para.text = bullet
+                    para.level = 0
+                    for run in para.runs:
+                        _set_font(run, 18, color=DARK)
+
+            # Presenter notes
+            notes_text = slide_info.get("notes", "")
+            if notes_text:
+                slide.notes_slide.notes_text_frame.text = notes_text
+
+        # Save
+        output = BytesIO()
+        prs.save(output)
+        output.seek(0)
+
+        safe_title = re.sub(r'[^\w\s\-]', '', slide_data.get("title", "LIFT_Presentation"))
+        filename = safe_title.strip().replace(" ", "_")[:50] + ".pptx"
+
+        return Response(
+            output.getvalue(),
+            mimetype="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        )
+
+    except Exception as e:
+        return jsonify({"error": f"PPT build error: {e}"}), 500
+
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8080"))

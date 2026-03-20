@@ -1,4 +1,6 @@
-Flask
+flask
+flask-cors
 gunicorn
 google-generativeai
-flask-cors
+python-docx
+python-pptx
