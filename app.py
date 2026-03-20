@@ -1,7 +1,7 @@
 import os
 from flask import Flask, request, jsonify, Response, session
 from flask_cors import CORS
-import google.generativeai as genai
+import google.genai as genai
 
 # -----------------------------
 # LIFT: Web App with Chat UI + Conversational Memory
