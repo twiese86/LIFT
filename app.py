@@ -333,7 +333,8 @@ def ui():
             <div class="title-row">
               <div class="pill">L</div>
               <div style="flex:1;">
-                <h1>LIFT: Learning Innovation Faculty Tool</h1>
+                <h1>LIFT: Lecture and Instructional Faculty Tool
+ </h1>
                 <p class="subtitle">Chat with LIFT using course content + a prompt, or generate a PowerPoint from your prompt.</p>
               </div>
               <button id="reset-btn" title="Start a new conversation" style="background:none;border:1px solid #e5e7eb;border-radius:999px;padding:0.3rem 0.75rem;font-size:0.78rem;color:#6b7280;cursor:pointer;white-space:nowrap;">&#8635; New Chat</button>
