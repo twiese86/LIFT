@@ -323,8 +323,6 @@ def ui():
         .btn-ppt:disabled {{ opacity: 0.6; cursor: default; }}
         .muted {{ color: #6b7280; font-size: 0.75rem; }}
         .error-text {{ color: #b91c1c; font-size: 0.8rem; margin-top: 0.25rem; }}
-        .footer {{ border-top: 1px solid #e5e7eb; padding: 0.5rem 1.5rem 0.65rem; display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: #9ca3af; }}
-        .mono {{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }}
         @media (max-width: 640px) {{ .app {{ padding: 0.75rem; }} .chat-window {{ max-height: 55vh; }} .bubble {{ max-width: 90%; }} }}
       </style>
     </head>
@@ -335,7 +333,7 @@ def ui():
             <div class="title-row">
               <div class="pill">L</div>
               <div>
-                <h1>LIFT: Lecture and Instructional Faculty Tool</h1>
+                <h1>LIFT: Learning Innovation Faculty Tool</h1>
                 <p class="subtitle">Chat with LIFT using course content + a prompt, or generate a PowerPoint from your prompt.</p>
               </div>
             </div>
@@ -384,20 +382,16 @@ def ui():
               </div>
               <div class="actions">
                 <div class="muted">Conversation memory is enabled per browser.</div>
-                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
-                  <button type="submit"><span>Generate with LIFT</span></button>
-                  <button type="button" class="btn-ppt" id="ppt-btn">&#9654; Generate as PowerPoint</button>
-                </div>
+                <button type="submit"><span>Generate with LIFT</span></button>
               </div>
               <div id="error" class="error-text" style="display:none;"></div>
               <div id="ppt-status" class="muted" style="display:none;margin-top:0.25rem;"></div>
+              <div style="text-align:right;margin-top:0.4rem;">
+                <button type="button" id="ppt-btn" style="background:none;border:none;padding:0;color:#9ca3af;font-size:0.75rem;cursor:pointer;text-decoration:underline;">generate as powerpoint</button>
+              </div>
             </form>
           </main>
 
-          <footer class="footer">
-            <span>Model: <span class="mono">{MODEL_NAME}</span></span>
-            <span>Powered by Gemini</span>
-          </footer>
         </div>
       </div>
 
@@ -408,7 +402,14 @@ def ui():
         const submitBtn = form.querySelector('button[type="submit"]');
 
         function escapeHTML(str) {{ return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }}
-        function formatWithBreaks(str) {{ return escapeHTML(str).replace(/\\n/g, "<br>"); }}
+        function formatWithBreaks(str) {{
+          let s = escapeHTML(str);
+          s = s.replace(/\*\*(.*?)\*\*/gs, '<strong>$1</strong>');
+          s = s.replace(/\*(.*?)\*/gs, '$1');
+          s = s.replace(/^#+\s?/gm, '');
+          s = s.replace(/\\n/g, "<br>");
+          return s;
+        }}
         function scrollChatToBottom() {{ chat.scrollTop = chat.scrollHeight; }}
 
         function addMessage(role, htmlBody) {{
@@ -594,7 +595,7 @@ Respond as LIFT using the specific Use Case context provided above.
 """
 
     try:
-        resp = model.generate_content(prompt, request_options={"timeout": 140})
+        resp = model.generate_content(prompt, request_options={"timeout": 110})
         output_text = getattr(resp, "text", "")
 
         history.append({"role": "user", "content": f"Use Case: {use_case_key} | Prompt: {instructions[:200]}"})
