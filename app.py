@@ -720,10 +720,20 @@ Respond as LIFT using the specific Use Case context provided above.
         return jsonify({"error": str(e)}), 500
 
     # ── Build the Word document ───────────────────────────────
+    def _add_bold_runs(para, text):
+        """Split text on **bold** markers and add runs with correct bold state."""
+        # Remove any lone/unmatched single asterisks first
+        text = re.sub(r'(?<!\*)\*(?!\*)', '', text)
+        parts = re.split(r'\*\*(.*?)\*\*', text)
+        for i, part in enumerate(parts):
+            if part:
+                run = para.add_run(part)
+                run.bold = (i % 2 == 1)
+
     try:
         doc = Document()
 
-        # Title from first non-empty line or instructions snippet
+        # Title: first non-empty line with all asterisks/hashes stripped
         first_line = output_text.strip().splitlines()[0] if output_text.strip() else "LIFT Output"
         title_text = re.sub(r'[#*]', '', first_line).strip()[:120]
         doc.add_heading(title_text, level=0)
@@ -734,23 +744,27 @@ Respond as LIFT using the specific Use Case context provided above.
                 doc.add_paragraph("")
                 continue
 
-            # Markdown-style headings → Word headings
+            # ── Markdown headings → Word headings ──
             if stripped.startswith("### "):
-                doc.add_heading(stripped[4:], level=3)
+                doc.add_heading(re.sub(r'\*', '', stripped[4:]).strip(), level=3)
             elif stripped.startswith("## "):
-                doc.add_heading(stripped[3:], level=2)
+                doc.add_heading(re.sub(r'\*', '', stripped[3:]).strip(), level=2)
             elif stripped.startswith("# "):
-                doc.add_heading(stripped[2:], level=1)
-            # Bullet points
+                doc.add_heading(re.sub(r'\*', '', stripped[2:]).strip(), level=1)
+
+            # ── Entire line is **bold** → treat as a sub-heading ──
+            elif re.match(r'^\*\*.+\*\*$', stripped):
+                doc.add_heading(re.sub(r'\*', '', stripped).strip(), level=2)
+
+            # ── Bullet points (with inline bold support) ──
             elif stripped.startswith("* ") or stripped.startswith("- "):
-                doc.add_paragraph(stripped[2:], style="List Bullet")
+                para = doc.add_paragraph(style="List Bullet")
+                _add_bold_runs(para, stripped[2:])
+
+            # ── Regular paragraph with inline bold ──
             else:
-                # Inline bold: **text** → bold run
                 para = doc.add_paragraph()
-                parts = re.split(r'\*\*(.*?)\*\*', stripped)
-                for i, part in enumerate(parts):
-                    run = para.add_run(part)
-                    run.bold = (i % 2 == 1)
+                _add_bold_runs(para, stripped)
 
         output = BytesIO()
         doc.save(output)
