@@ -332,10 +332,11 @@ def ui():
           <header class="header">
             <div class="title-row">
               <div class="pill">L</div>
-              <div>
+              <div style="flex:1;">
                 <h1>LIFT: Learning Innovation Faculty Tool</h1>
                 <p class="subtitle">Chat with LIFT using course content + a prompt, or generate a PowerPoint from your prompt.</p>
               </div>
+              <button id="reset-btn" title="Start a new conversation" style="background:none;border:1px solid #e5e7eb;border-radius:999px;padding:0.3rem 0.75rem;font-size:0.78rem;color:#6b7280;cursor:pointer;white-space:nowrap;">&#8635; New Chat</button>
             </div>
           </header>
 
@@ -386,7 +387,8 @@ def ui():
               </div>
               <div id="error" class="error-text" style="display:none;"></div>
               <div id="ppt-status" class="muted" style="display:none;margin-top:0.25rem;"></div>
-              <div style="text-align:right;margin-top:0.4rem;">
+              <div style="text-align:right;margin-top:0.4rem;display:flex;flex-direction:column;align-items:flex-end;gap:0.25rem;">
+                <button type="button" id="docx-btn" style="background:none;border:none;padding:0;color:#9ca3af;font-size:0.75rem;cursor:pointer;text-decoration:underline;">generate as docx</button>
                 <button type="button" id="ppt-btn" style="background:none;border:none;padding:0;color:#9ca3af;font-size:0.75rem;cursor:pointer;text-decoration:underline;">generate as powerpoint</button>
               </div>
             </form>
@@ -473,6 +475,54 @@ def ui():
           }}
         }});
 
+        // ── Docx button handler ──
+        document.getElementById('docx-btn').addEventListener('click', async () => {{
+          const pptStatus = document.getElementById('ppt-status');
+          const docxBtn = document.getElementById('docx-btn');
+          const instructions = document.getElementById('instructions').value.trim();
+          const file = document.getElementById('file').files[0];
+          errorBox.style.display = 'none';
+
+          if (!instructions && !file) {{
+            errorBox.textContent = 'Provide a prompt or upload a file before generating a Word document.';
+            errorBox.style.display = 'block';
+            return;
+          }}
+
+          docxBtn.disabled = true;
+          submitBtn.disabled = true;
+          pptStatus.textContent = 'Generating your Word document\u2026 this may take up to 60 seconds.';
+          pptStatus.style.display = 'block';
+
+          try {{
+            const res = await fetch('/generate-docx', {{ method: 'POST', body: new FormData(form) }});
+            if (!res.ok) {{
+              const data = await res.json();
+              errorBox.textContent = 'Docx Error: ' + (data.error || 'Failed to generate.');
+              errorBox.style.display = 'block';
+              pptStatus.style.display = 'none';
+            }} else {{
+              const blob = await res.blob();
+              const disposition = res.headers.get('Content-Disposition') || '';
+              const match = disposition.match(/filename="(.+?)"/);
+              const filename = match ? match[1] : 'LIFT_Document.docx';
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url; a.download = filename;
+              document.body.appendChild(a); a.click(); a.remove();
+              URL.revokeObjectURL(url);
+              pptStatus.textContent = '\u2705 Word document downloaded!';
+            }}
+          }} catch (err) {{
+            errorBox.textContent = 'Network error. Please try again.';
+            errorBox.style.display = 'block';
+            pptStatus.style.display = 'none';
+          }} finally {{
+            docxBtn.disabled = false;
+            submitBtn.disabled = false;
+          }}
+        }});
+
         // ── PPT button handler (uses the same main form fields) ──
         document.getElementById('ppt-btn').addEventListener('click', async () => {{
           const pptStatus = document.getElementById('ppt-status');
@@ -521,6 +571,16 @@ def ui():
             submitBtn.disabled = false;
           }}
         }});
+        // ── Reset / New Chat button ──
+        document.getElementById('reset-btn').addEventListener('click', async () => {{
+          await fetch('/reset', {{ method: 'POST' }});
+          chat.innerHTML = '';
+          addMessage('assistant', 'Conversation cleared. Select a use case, enter a prompt, and let\u2019s start fresh!');
+          document.getElementById('instructions').value = '';
+          document.getElementById('file').value = '';
+          errorBox.style.display = 'none';
+          document.getElementById('ppt-status').style.display = 'none';
+        }});
       </script>
     </body>
     </html>
@@ -530,6 +590,11 @@ def ui():
 @app.route("/healthz", methods=["GET"])
 def healthz():
     return jsonify({"status": "ok"})
+
+@app.route("/reset", methods=["POST"])
+def reset():
+    session.clear()
+    return jsonify({"status": "cleared"})
 
 def _get_history():
     return session.get("lift_history", [])
@@ -605,6 +670,103 @@ Respond as LIFT using the specific Use Case context provided above.
         return jsonify({"generated_text": output_text})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/generate-docx", methods=["POST"])
+def generate_docx():
+    """
+    Same form fields as /generate-content. Returns Gemini's output as a formatted .docx.
+    """
+    instructions = request.form.get("instructions", "") or ""
+    use_case_key = request.form.get("use_case", "none")
+    uploaded_file = request.files.get("file")
+
+    if not instructions and (not uploaded_file or not uploaded_file.filename):
+        return jsonify({"error": "Provide a prompt or upload a file to generate a Word document."}), 400
+
+    use_case_context = USE_CASES.get(use_case_key, USE_CASES["none"])
+
+    combined_text = ""
+    if uploaded_file and uploaded_file.filename:
+        try:
+            combined_text = _extract_file_text(uploaded_file) + "\n"
+        except Exception as e:
+            return jsonify({"error": f"File error: {e}"}), 400
+
+    safe_instructions = scrub_pii(instructions)
+    safe_content = scrub_pii(combined_text)
+
+    prompt = f"""You are LIFT, an AI assistant for faculty.
+
+STRICT OPERATING CONTEXT:
+{use_case_context}
+
+General Capabilities:
+- Learning outcomes & scaffolding
+- Summary & Quiz generation (Bloom's alignment)
+- Accessibility & Flipped classroom materials
+
+LATEST REQUEST:
+Prompt: {safe_instructions}
+Content: {safe_content}
+
+Respond as LIFT using the specific Use Case context provided above.
+"""
+
+    try:
+        resp = model.generate_content(prompt, request_options={"timeout": 110})
+        output_text = getattr(resp, "text", "")
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    # ── Build the Word document ───────────────────────────────
+    try:
+        doc = Document()
+
+        # Title from first non-empty line or instructions snippet
+        first_line = output_text.strip().splitlines()[0] if output_text.strip() else "LIFT Output"
+        title_text = re.sub(r'[#*]', '', first_line).strip()[:120]
+        doc.add_heading(title_text, level=0)
+
+        for line in output_text.splitlines():
+            stripped = line.strip()
+            if not stripped:
+                doc.add_paragraph("")
+                continue
+
+            # Markdown-style headings → Word headings
+            if stripped.startswith("### "):
+                doc.add_heading(stripped[4:], level=3)
+            elif stripped.startswith("## "):
+                doc.add_heading(stripped[3:], level=2)
+            elif stripped.startswith("# "):
+                doc.add_heading(stripped[2:], level=1)
+            # Bullet points
+            elif stripped.startswith("* ") or stripped.startswith("- "):
+                doc.add_paragraph(stripped[2:], style="List Bullet")
+            else:
+                # Inline bold: **text** → bold run
+                para = doc.add_paragraph()
+                parts = re.split(r'\*\*(.*?)\*\*', stripped)
+                for i, part in enumerate(parts):
+                    run = para.add_run(part)
+                    run.bold = (i % 2 == 1)
+
+        output = BytesIO()
+        doc.save(output)
+        output.seek(0)
+
+        safe_title = re.sub(r'[^\w\s\-]', '', title_text)
+        filename = safe_title.strip().replace(" ", "_")[:50] + ".docx"
+
+        return Response(
+            output.getvalue(),
+            mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        )
+
+    except Exception as e:
+        return jsonify({"error": f"Docx build error: {e}"}), 500
 
 
 @app.route("/generate-ppt", methods=["POST"])
