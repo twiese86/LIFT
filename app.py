@@ -394,7 +394,14 @@ def ui():
               </div>
             </form>
           </main>
-
+          <footer class="footer" style="padding: 1rem 1.5rem; border-top: 1px solid #e5e7eb; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+            <span style="font-size: 0.8rem; color: #6b7280;">Model: <span class="mono">{MODEL_NAME}</span></span>
+            <a href="https://forms.office.com/Pages/ResponsePage.aspx?id=MhEJUGRUaU-YxtCJ6l6HXOMch7txueVKlhP5KgHxgshURU81WE01NlJVQUczUFNUMVoxRzkyTTExWi4u" 
+               target="_blank" 
+               style="color: #4f46e5; text-decoration: none; font-weight: 600; font-size: 0.85rem;">
+               &#128221; Expert Faculty Review Survey: Fill out form
+            </a>
+          </footer>
         </div>
       </div>
 
